@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="The Bound Escape">
+  <defs>
+    <radialGradient id="rift" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#8b5cf6" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#8b5cf6" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="96" fill="#0a0908"/>
+  <circle cx="352" cy="140" r="150" fill="url(#rift)"/>
+
+  <!-- the shackle, broken open at the upper right -->
+  <path d="M405.7 179.7A168 168 0 1 1 332.3 106.3" fill="none" stroke="#e8a13a" stroke-width="56"/>
+
+  <!-- the fist: back of the hand, four knuckles, thumb locked across -->
+  <g fill="#e8a13a">
+    <rect x="182" y="212" width="148" height="112" rx="20"/>
+    <rect x="186" y="184" width="34" height="44" rx="14"/>
+    <rect x="224" y="176" width="34" height="52" rx="14"/>
+    <rect x="262" y="180" width="34" height="48" rx="14"/>
+    <rect x="300" y="196" width="30" height="40" rx="14"/>
+    <rect x="196" y="286" width="104" height="38" rx="18" transform="rotate(-13 248 305)"/>
+    <rect x="212" y="324" width="92" height="58" rx="14"/>
+  </g>
+
+  <!-- what came through the break -->
+  <path d="M356 132l30-34-6 30 34-16-30 26 30 8-38 6 14 28-26-24-24 20 12-30-30-4z"
+        fill="#8b5cf6"/>
+</svg>
