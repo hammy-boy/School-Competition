@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>THE BOUND ESCAPE — Chapter One · Ground Zero, the Outer Ring and the Turbine Crossing</title>
+<link rel="icon" type="image/png" sizes="512x512" href="assets/icon-512.png">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/icon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="assets/icon-16.png">
+<link rel="apple-touch-icon" href="assets/icon-180.png">
+<link rel="stylesheet" href="src/styles.css">
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="stage">
+  <canvas id="game"></canvas>
+  <div id="darkness"></div>
+  <div id="blur-veil"></div>
+  <div id="grain"></div>
+  <div id="vignette"></div>
+  <div id="dmg"></div>
+  <div id="flash"></div>
+</div>
+
+<div id="hud">
+  <div id="crosshair"><i></i><i></i><i></i><i></i></div>
+
+  <div id="meters">
+    <div class="meter" id="m-load">
+      <span class="lbl">LOAD</span>
+      <div class="bar"><i></i></div>
+      <span class="tip">lean back, then strike</span>
+    </div>
+    <div class="meter" id="m-desp">
+      <span class="lbl">DESPERATION</span>
+      <div class="bar"><i></i></div>
+      <span class="tip">full = stance-breaker</span>
+    </div>
+    <div class="meter hidden" id="m-anom">
+      <span class="lbl">ANOMALY</span>
+      <div class="bar"><i></i></div>
+      <span class="tip">full = <b>2</b> releases it</span>
+    </div>
+    <div class="meter" id="m-resolve">
+      <span class="lbl">RESOLVE</span>
+      <div class="pips"><i></i><i></i><i></i></div>
+    </div>
+  </div>
+
+  <div id="prompt" class="hidden"></div>
+  <div id="caption" class="hidden"><b></b><p></p></div>
+  <div id="hint"></div>
+</div>
+
+<div id="cover">
+  <div class="cover-inner">
+    <img class="mark" src="assets/logo.png" alt="THE BOUND ESCAPE" width="300">
+    <p class="kicker">CHAPTER ONE</p>
+    <h1>GROUND ZERO,<br><em>THE OUTER RING &amp; THE TURBINE CROSSING</em></h1>
+    <p class="sub">In the cell you have twelve inches and one fist. On the ring you can walk, and your fists stop working. On the platform they come at you faster than you can hit — so you stop hitting, and start finishing what they started.</p>
+    <ul class="keys">
+      <li><kbd>W A S D</kbd><span>rock / lean / lunge (there is no walk)</span></li>
+      <li><kbd>MOUSE</kbd><span>look — first person, by mouse travel not cursor position</span></li>
+      <li><kbd>ESC</kbd><span>pause menu — sound and look settings, and your cursor back</span></li>
+      <li><kbd>LMB</kbd><span>left hook — fast, wide</span></li>
+      <li><kbd>RMB</kbd><span>right straight — long, heavy</span></li>
+      <li><kbd>F</kbd><span>headbutt</span></li>
+      <li><kbd>E</kbd><span>chair lurch / grab / pry</span></li>
+      <li><kbd>SPACE</kbd><span>strain the ties · stand · step off the edge</span></li>
+      <li><kbd>SHIFT</kbd><span>brace — hold it to dig your heels in</span></li>
+    </ul>
+    <button id="begin">OPEN YOUR EYES</button>
+    <p class="note">Click anywhere to begin · <kbd>ENTER</kbd> skips the opening · Headphones recommended · Gamepad supported · Your run and your ability survive a refresh</p>
+  </div>
+</div>
+
+<div id="endcard" class="hidden">
+  <div class="cover-inner">
+    <p class="kicker" id="end-kicker">CHAPTER ONE · GROUND ZERO AND THE OUTER RING — CLEAR</p>
+    <h1 id="end-title">THE RING IS EMPTY.<br><em>THE DISTRICT IS NOT.</em></h1>
+    <p class="sub" id="stats"></p>
+    <button id="replay">RUN CHAPTER ONE AGAIN</button>
+  </div>
+</div>
+
+<div id="nav" class="hidden">
+  <div class="cover-inner">
+    <p class="kicker">THE BOUND ESCAPE</p>
+    <h1>YOU STOPPED<br><em>IN THE CELL</em></h1>
+    <p class="sub" id="nav-where"></p>
+    <div id="nav-actions"></div>
+    <div id="nav-list" class="hidden"></div>
+    <p class="note" id="nav-note"></p>
+  </div>
+</div>
+
+<div id="menu" class="hidden">
+  <div class="cover-inner">
+    <p class="kicker">PAUSED</p>
+    <h1>THE ROOM<br><em>WAITS</em></h1>
+    <div class="rows">
+      <label class="row"><span>MASTER</span><input id="vol" type="range" min="0" max="100" step="1"><output id="vol-out">90</output></label>
+      <label class="row"><span>LOOK</span><input id="sens" type="range" min="30" max="220" step="5"><output id="sens-out">1.0×</output></label>
+    </div>
+    <p class="sub" id="menu-keys"></p>
+    <button id="resume">BACK TO THE FIGHT</button><button id="nav-open" class="ghost">CONTINUE · SECTION SELECT</button><button id="restart" class="ghost">RESTART CHAPTER ONE</button>
+    <p class="note">ESC closes this and takes the mouse back · M mutes · refreshing keeps your run and your ability</p>
+  </div>
+</div>
+
+<script type="module" src="src/main.js"></script>
+<script>
+/* A stale cached module used to brick the title screen in silence: main.js never
+   finished, so "open your eyes" did nothing and never said why. */
+addEventListener('load', () => setTimeout(() => {
+  if (window.__game) return;
+  const n = document.querySelector('#cover .note');
+  if (!n) return;
+  n.style.color = '#e8a13a';
+  n.textContent = location.protocol === 'file:'
+    ? 'Engine not loaded — open it through the server at http://127.0.0.1:8123/index.html'
+    : 'Engine not loaded — hold Shift and click Reload to drop the cached scripts';
+}, 2500));
+</script>
+</body>
+</html>
