@@ -527,6 +527,62 @@ export class AudioEngine {
     }), 120 + i * 110));
   }
 
+  // ---- Section Four: the anomaly core ------------------------------------
+
+  /** the tear opening: the air being pulled into a shape that has no edges */
+  riftTear(dur = 3.2) {
+    if (!this.ready) return;
+    const ctx = this.ctx, t0 = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = this.noiseBuf; src.loop = true; src.playbackRate.value = 1.6;
+    const f = ctx.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 6;
+    f.frequency.setValueAtTime(240, t0);
+    f.frequency.exponentialRampToValueAtTime(5200, t0 + dur);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.linearRampToValueAtTime(0.34, t0 + dur * 0.7);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur + 0.4);
+    src.connect(f); f.connect(g); g.connect(this.master);
+    src.start(t0); src.stop(t0 + dur + 0.5);
+    this._tone({ type: 'sine', f0: 40, f1: 168, dur, peak: 0.34, attack: dur * 0.3 });
+    this._tone({ type: 'triangle', f0: 61, f1: 252, dur, peak: 0.14, attack: dur * 0.35, detune: 14 });
+  }
+
+  /** the lash landing in your chest, and everything in the room arriving after it */
+  riftSurge() {
+    this._tone({ type: 'sine', f0: 300, f1: 30, dur: 1.3, peak: 0.85, attack: 0.004 });
+    this._noise({ dur: 0.5, type: 'lowpass', freq: 900, peak: 0.7, attack: 0.003, sweep: -700, curve: 'lin' });
+    this._noise({ dur: 1.1, type: 'bandpass', freq: 2600, q: 1.2, peak: 0.3, attack: 0.02, sweep: 2600, curve: 'lin' });
+    this._tone({ type: 'square', f0: 1400, f1: 180, dur: 0.4, peak: 0.1, attack: 0.002 });
+    setTimeout(() => this._tone({ type: 'sine', f0: 84, f1: 34, dur: 1.6, peak: 0.4, attack: 0.06 }), 90);
+  }
+
+  /** a containment unit opening from the inside: seal, gas, and hardware */
+  podBurst() {
+    this._noise({ dur: 0.22, type: 'bandpass', freq: 1500, q: 0.8, peak: 0.5, attack: 0.002, sweep: -1100, curve: 'lin' });
+    this._tone({ type: 'sine', f0: 210, f1: 52, dur: 0.5, peak: 0.42, attack: 0.004 });
+    this._noise({ dur: 1.5, type: 'highpass', freq: 1400, peak: 0.16, attack: 0.06, sweep: -600, curve: 'lin' });
+    setTimeout(() => this._noise({ dur: 0.14, type: 'bandpass', freq: 3200, q: 4, peak: 0.2, attack: 0.001 }), 60);
+  }
+
+  /** the collar is gone: glass, a coil dying, and a pitch that falls out of hearing */
+  fobShatter() {
+    for (let i = 0; i < 6; i++) {
+      setTimeout(() => this._noise({
+        dur: 0.1, type: 'bandpass', freq: 2600 + Math.random() * 4200, q: 7, peak: 0.2, attack: 0.001,
+      }), i * 34);
+    }
+    this._tone({ type: 'square', f0: 2200, f1: 90, dur: 0.5, peak: 0.14, attack: 0.002 });
+    this._tone({ type: 'sine', f0: 620, f1: 40, dur: 0.7, peak: 0.3, attack: 0.004 });
+  }
+
+  /** the shock hammer's air line charging: a hiss with a whine riding on it */
+  pneumatic(k = 1) {
+    this._noise({ dur: 0.8 * k, type: 'bandpass', freq: 900, q: 1.1, peak: 0.16 * k, attack: 0.06, sweep: 2400, curve: 'lin' });
+    this._tone({ type: 'sawtooth', f0: 180, f1: 760, dur: 0.8 * k, peak: 0.07 * k, attack: 0.08 });
+    this._tone({ type: 'sine', f0: 62, f1: 96, dur: 0.7 * k, peak: 0.16 * k, attack: 0.1 });
+  }
+
   // ---- persistent ambient bed -------------------------------------------
   startAmbient() {
     if (!this.ready || this.amb) return;
@@ -593,6 +649,57 @@ export class AudioEngine {
     this._applyEnv();
   }
 
+  /** the machine hall under the intake: the rift has its own weather, and it is
+   *  the only thing in the facility anyone still keeps running. The bed gets
+   *  louder as the tear opens, which is the whole sound design of Section Four. */
+  startCoreAmbient() {
+    if (!this.ready || this.coreAmb) return;
+    const ctx = this.ctx;
+    const g = ctx.createGain(); g.gain.value = 0.0; g.connect(this.master);
+
+    const sub = ctx.createOscillator(); sub.type = 'sine'; sub.frequency.value = 28;
+    const sg = ctx.createGain(); sg.gain.value = 0.22;
+    sub.connect(sg); sg.connect(g); sub.start();
+
+    // a detuned fifth that beats against itself: something held open by force
+    const hum = ctx.createOscillator(); hum.type = 'triangle'; hum.frequency.value = 92;
+    const humB = ctx.createOscillator(); humB.type = 'triangle'; humB.frequency.value = 138.5;
+    const hg = ctx.createGain(); hg.gain.value = 0.02;
+    hum.connect(hg); humB.connect(hg); hg.connect(g); hum.start(); humB.start();
+
+    // the containment gimbal, turning under its own weight
+    const grind = ctx.createBufferSource();
+    grind.buffer = this.noiseBuf; grind.loop = true; grind.playbackRate.value = 0.3;
+    const gf = ctx.createBiquadFilter(); gf.type = 'lowpass'; gf.frequency.value = 180;
+    const gg = ctx.createGain(); gg.gain.value = 0.14;
+    grind.connect(gf); gf.connect(gg); gg.connect(g); grind.start();
+
+    // and the air, moving up into a hole in the ceiling
+    const draft = ctx.createBufferSource();
+    draft.buffer = this.noiseBuf; draft.loop = true; draft.playbackRate.value = 0.7;
+    const df = ctx.createBiquadFilter(); df.type = 'bandpass'; df.frequency.value = 480; df.Q.value = 0.7;
+    const dg = ctx.createGain(); dg.gain.value = 0.1;
+    const swell = ctx.createOscillator(); swell.frequency.value = 0.11;
+    const swg = ctx.createGain(); swg.gain.value = 240;
+    swell.connect(swg); swg.connect(df.frequency);
+    draft.connect(df); df.connect(dg); dg.connect(g); draft.start(); swell.start();
+
+    this.coreAmb = { g, hg, sg, df };
+    this._applyEnv(2.4);
+  }
+
+  /** rift open-ness, 0..1.6, arrived at over `dur` seconds */
+  setRift(level, dur = 1) {
+    if (!this.coreAmb) return;
+    const t = this.ctx.currentTime;
+    const L = Math.max(0, level);
+    for (const [param, to] of [[this.coreAmb.hg.gain, 0.015 + L * 0.075], [this.coreAmb.sg.gain, 0.2 + L * 0.16]]) {
+      param.cancelScheduledValues(t);
+      param.setValueAtTime(param.value, t);
+      param.linearRampToValueAtTime(to, t + dur);
+    }
+  }
+
   /** the shaft under the platform: three storeys of blades pulling air down.
    *  Runs under the silo bed for the whole of Section Three, and swells every
    *  time something falls into it. */
@@ -644,18 +751,20 @@ export class AudioEngine {
     }
   }
 
-  /** 'cell' or 'silo' — only one bed plays at a time */
+  /** 'cell', 'silo' or 'core' — only one bed plays at a time */
   setEnv(which) {
     this.env = which;
     if (which === 'silo') this.startSiloAmbient();
+    if (which === 'core') this.startCoreAmbient();
     this._applyEnv(1.6);
   }
 
   _applyEnv(dur = 1.2) {
     if (!this.ready) return;
     const t = this.ctx.currentTime;
-    const active = this.env === 'silo' ? this.siloAmb : this.amb;
-    for (const bed of [this.amb, this.siloAmb]) {
+    const beds = [this.amb, this.siloAmb, this.coreAmb];
+    const active = this.env === 'silo' ? this.siloAmb : this.env === 'core' ? this.coreAmb : this.amb;
+    for (const bed of beds) {
       if (!bed) continue;
       bed.g.gain.cancelScheduledValues(t);
       bed.g.gain.setValueAtTime(bed.g.gain.value, t);

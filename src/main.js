@@ -4,6 +4,7 @@ import { AudioEngine } from './audio.js';
 import { Hud } from './hud.js';
 import { buildWorld } from './world.js';
 import { buildSilo } from './silo.js';
+import { buildCore } from './core.js';
 import { Player } from './player.js';
 import { Guard } from './enemy.js';
 import { Director } from './director.js';
@@ -44,6 +45,7 @@ const hud = new Hud();
 const world = buildWorld(scene);
 const cellFog = scene.fog;
 const silo = buildSilo(scene);
+const core = buildCore(scene);
 const player = new Player(scene, camera);
 const guard1 = new Guard(scene, { tall: 1.05, canvas: 0x6d5940 });
 const guard2 = new Guard(scene, { tall: 0.99, canvas: 0x3a4148, baton: true, lighter: true });
@@ -54,13 +56,19 @@ const scout1 = new Guard(scene, { scout: true, tall: 1.04, canvas: 0x1e262c });
 const scout2 = new Guard(scene, { scout: true, tall: 0.97, canvas: 0x232b2a });
 const scout3 = new Guard(scene, { scout: true, tall: 1.09, canvas: 0x1b2229 });
 const officer = new Guard(scene, { officer: true, tall: 0.95, canvas: 0x2f2c26 });
+// Section Four: what the containment units were actually for. Plate eats a
+// third of anything that lands, so a fist alone is a slow argument here.
+const trooper1 = new Guard(scene, { trooper: true, tall: 1.13, armor: 0.38, walkRate: 0.74, canvas: 0x2c332c });
+const trooper2 = new Guard(scene, { trooper: true, tall: 1.06, armor: 0.38, walkRate: 0.78, canvas: 0x31352c });
+const trooper3 = new Guard(scene, { trooper: true, tall: 1.18, armor: 0.42, walkRate: 0.7, canvas: 0x272d2a });
 
 const game = {
-  scene, camera, renderer, world, silo, player, guards: [guard1, guard2],
+  scene, camera, renderer, world, silo, core, player, guards: [guard1, guard2],
   enforcers: [enforcer1, enforcer2],
   scouts: [scout1, scout2, scout3],
+  troopers: [trooper1, trooper2, trooper3],
   officer,
-  fighters: [guard1, guard2, enforcer1, enforcer2, scout1, scout2, scout3, officer],
+  fighters: [guard1, guard2, enforcer1, enforcer2, scout1, scout2, scout3, trooper1, trooper2, trooper3, officer],
   input, audio, hud,
   env: world, envName: 'cell',
   time: 0, started: false, over: false, paused: false,
@@ -69,21 +77,22 @@ const game = {
   addHitstop(s) { this.hitstop = Math.max(this.hitstop, s); },
   addTrauma(v) { this.trauma = Math.min(1.5, this.trauma + v); },
 
-  /** the cell and the ring never share a frame: one fog, one floor, one sky */
+  /** no two rooms ever share a frame: one fog, one floor, one sky */
   setEnv(name) {
     if (this.envName === name) return;
     this.envName = name;
-    this.env = name === 'silo' ? this.silo : this.world;
-    this.world.setVisible(name !== 'silo');
+    this.env = name === 'cell' ? this.world : name === 'core' ? this.core : this.silo;
+    this.world.setVisible(name === 'cell');
     this.silo.setVisible(name === 'silo');
-    this.scene.fog = name === 'silo' ? this.silo.fog : cellFog;
-    this.scene.background.set(name === 'silo' ? 0x070605 : 0x050403);
-    this.camera.far = name === 'silo' ? 320 : 80;
+    this.core.setVisible(name === 'core');
+    this.scene.fog = name === 'cell' ? cellFog : this.env.fog;
+    this.scene.background.set({ cell: 0x050403, silo: 0x070605, core: 0x06080a }[name]);
+    this.camera.far = { cell: 80, silo: 320, core: 120 }[name];
     this.camera.updateProjectionMatrix();
-    deckLamp.intensity = name === 'silo' ? 110 : 0;
-    faceFill.intensity = name === 'silo' ? 0.5 : 0.85;
+    deckLamp.intensity = name === 'cell' ? 0 : name === 'core' ? 78 : 110;
+    faceFill.intensity = name === 'cell' ? 0.85 : 0.5;
     // the corner legend has to describe the body you are actually in
-    this.setControls(name === 'silo' ? 'ring' : 'cell');
+    this.setControls(name === 'cell' ? 'cell' : name === 'core' ? 'core' : 'ring');
     audio.setEnv(name);
   },
 
@@ -107,7 +116,8 @@ const game = {
 
     const bound = section === 1;
     const silo = this.silo;
-    this.setEnv(bound ? 'cell' : 'silo');
+    const core = this.core;
+    this.setEnv(section >= 4 ? 'core' : bound ? 'cell' : 'silo');
     this.world.resetCell();
     for (const d of silo.doors) { d.closing = false; d.sealed = false; d.shut = 0; }
     Object.assign(silo.elevator.userData, { shut: 0, closing: false });
@@ -116,6 +126,13 @@ const game = {
     silo.platformOnly = section >= 3;
     silo.satchel.visible = true;
     silo.showGlint(false);
+    // the hall resets the way a room that is still running resets: the pods seal
+    // back up and the tear closes, unless the pull you already carry says
+    // otherwise — then the hall keeps wearing your ability's colour
+    for (const p of core.pods) { p.want = 0; p.open = 0; p.burst = 0; }
+    core.rift = 0; core.riftWant = 0.14; core.surge = 0; core.alarm = 0; core.lashOn = 0;
+    core.gateWant = 0; core.gateOpen = 0;
+    if (cat.def) core.setRiftColor(cat.def.rgb);
 
     for (const f of this.fighters) {
       f.ko = false; f.koT = 0; f.stagger = 0; f.landed = false; f.flinch = 0;
@@ -146,11 +163,23 @@ const game = {
     p.satchelWorn.visible = worn;
     p.fob.visible = worn;
     p.fobRate = worn ? 1 : 0;
-    if (section >= 3) {
+    if (section === 3) {
       this.audio.startTurbine();       // idempotent: the bed already runs under S3
       this.setControls('turbine');
       if (worn) silo.satchel.visible = false;
       silo.platformWorld(p.root.position).setY(0);
+    } else if (section >= 4) {
+      this.audio.startTurbine();       // the intake is still turning overhead
+      if (worn) silo.satchel.visible = false;
+      core.floorWorld(p.root.position);
+      // the collar is what sends you down: it stops existing in the middle of
+      // this room, so a resume after that beat is a bare wrist
+      const before = phase === 'chute' || phase === 'rift';
+      p.fob.visible = before;
+      p.fobRate = before ? 1 : 0;
+      if (!before) this.audio.setTurbine(0.3, 2);
+      // look up the hall at the pods, not at the wall you fell out of
+      p.aimYaw(Math.PI - 0.34);
     } else if (!bound) {
       // back onto the ring at the arc the director hands each beat over on. The
       // wall and the bridge are both faced *back* down the ring — that is where
@@ -224,7 +253,7 @@ let CONTROLS = CONTROLS_LEGEND.cell;
 for (const g of game.fighters) g.onEvent = (n, p, guard) => director.onGuardEvent(n, p, guard);
 player.onWhiff = () => { game.stats.misses++; audio.whoosh(0.45); catalyst.onWhiff(); };
 player.onTaken = () => catalyst.onTaken();
-player.onStep = (amp) => { if (game.envName === 'silo') audio.metalStep(0.45 + amp * 0.5); };
+player.onStep = (amp) => { if (game.envName !== 'cell') audio.metalStep(0.45 + amp * 0.5); };
 
 // ---------------- combat resolution ----------------
 const _tgt = new THREE.Vector3(), _eye = new THREE.Vector3(), _fwd = new THREE.Vector3();
@@ -439,10 +468,9 @@ function tick(now) {
   hud.meter('desp', player.desperation);
   hud.resolve(player.resolve);
 
-  // only the environment on screen is worth simulating
+  // only the room on screen is worth simulating
   const step = dt > 0 ? dt : rdt * 0.12;
-  if (game.envName === 'silo') silo.update(step, game.time);
-  else world.update(step, game.time);
+  game.env.update(step, game.time);
   renderer.render(scene, camera);
   // a hitstop frame is frozen world, live hands: dropping the key edges here
   // would swallow every strike and every ability pressed on impact, so the

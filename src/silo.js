@@ -168,9 +168,12 @@ export function buildSilo(scene) {
   const bdeck = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.14, BL), matGrate);
   bdeck.receiveShadow = true;
   bridge.add(bdeck);
+  // railings with gaps at entry (ring side, +Z) and exit (platform side, -Z)
+  const GAP_SIZE = 1.8;  // gap width for entering/exiting
+  const RAIL_LENGTH = BL - GAP_SIZE * 2;  // middle railing length with gaps at both ends
   for (const sx of [-1.55, 1.55]) {
-    const railM = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, BL), matMetal);
-    railM.position.set(sx, 0.5, 0);
+    const railM = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1.0, RAIL_LENGTH), matMetal);
+    railM.position.set(sx, 0.5, 0);  // centered on bridge
     bridge.add(railM);
   }
   for (let i = 0; i < 7; i++) {
@@ -698,7 +701,12 @@ export function buildSilo(scene) {
       }
       {
         const along = THREE.MathUtils.clamp(pos.x * u + pos.z * w, PLAT_R - 1, DECK_IN + 0.4);
-        const perp = THREE.MathUtils.clamp(pos.x * w - pos.z * u, -1.5, 1.5);
+        // allow exiting through gaps at bridge ends: if near the ends, widen the perp clamp
+        const distFromRing = Math.abs(along - DECK_IN);
+        const distFromPlat = Math.abs(along - PLAT_R);
+        const nearGap = distFromRing < 1.5 || distFromPlat < 1.5;
+        const perpWidth = nearGap ? 2.5 : 1.5;  // wider when near entry/exit gaps
+        const perp = THREE.MathUtils.clamp(pos.x * w - pos.z * u, -perpWidth, perpWidth);
         bridgeP.set(u * along + w * perp, 0, w * along - u * perp);
       }
       {
@@ -723,7 +731,12 @@ export function buildSilo(scene) {
       const { r, th } = polar(pos);
       if (r < PLAT_R + 0.6) return true;
       const along = pos.x * u + pos.z * w, perp = pos.x * w - pos.z * u;
-      if (along > PLAT_R - 1.5 && along < DECK_IN + 0.8 && Math.abs(perp) < 1.75) return true;
+      // widened perp check to allow walking through entry/exit gaps
+      const distFromRing = Math.abs(along - DECK_IN);
+      const distFromPlat = Math.abs(along - PLAT_R);
+      const nearGap = distFromRing < 1.5 || distFromPlat < 1.5;
+      const perpWidth = nearGap ? 2.5 : 1.75;
+      if (along > PLAT_R - 1.5 && along < DECK_IN + 0.8 && Math.abs(perp) < perpWidth) return true;
       // and the walkway itself: the annulus, and only the part of it that is
       // still there — past the shear there is nothing to stand on
       return r > DECK_IN - 0.4 && r < DECK_OUT + 0.8 && th >= -0.04 && th <= ARC_END;

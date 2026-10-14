@@ -112,6 +112,14 @@ export class Guard {
     this.shield = null;
     this.scout = !!opts.scout;
     this.officer = !!opts.officer;
+    this.trooper = !!opts.trooper;
+    // what the plating eats out of any strike that lands. Not immunity: a fist
+    // still works here, it just takes the whole room's worth of them, which is
+    // the argument for whatever the rift left in your hands.
+    this.armor = opts.armor ?? 0;
+    this.walkRate = opts.walkRate ?? 1;
+    this.pneuma = 0;             // the shock hammer's charge lamp
+    this.windHold = 0.62;        // how long a wind-up reads before it lands
     this.vulnerable = false;
     this.exo = 0;
     this.strafe = 1;
@@ -120,6 +128,7 @@ export class Guard {
     if (this.enforcer) this.dressAsEnforcer();
     if (this.scout) this.dressAsScout();
     if (this.officer) this.dressAsOfficer();
+    if (this.trooper) this.dressAsTrooper();
 
     this.v = new THREE.Vector3();
     this.spin = new THREE.Vector3();
@@ -250,6 +259,71 @@ export class Guard {
     this.headG.children[1].material = new THREE.MeshStandardMaterial({ color: 0x77664c, roughness: 1 });
     this.baton.visible = false;
     this.hasBaton = false;
+  }
+
+  /**
+   * Elite containment trooper: insulated plate over a whole body, a helmet with
+   * no chin to hit, and a pneumatic shock hammer on the right hand. No shield —
+   * they were not put in a pod to hold a line, they were put in a pod to be
+   * pointed at something. The charge lamp on the hammer head is the telegraph;
+   * the armour is the reason you will want the thing the rift gave you.
+   */
+  dressAsTrooper() {
+    const suit = new THREE.MeshStandardMaterial({ color: 0x2b2f2a, roughness: 0.94 });
+    const plate = new THREE.MeshStandardMaterial({ color: 0x5d6660, roughness: 0.48, metalness: 0.72 });
+    const rubber = new THREE.MeshStandardMaterial({ color: 0x16181a, roughness: 0.98 });
+    this.cellMat = new THREE.MeshStandardMaterial({
+      color: 0x0a2026, emissive: 0x39d7ff, emissiveIntensity: 0.4, roughness: 0.3,
+    });
+
+    this.torso.children[0].material = suit;
+    this.torso.children[0].scale.set(1.2, 1.06, 1.26);
+    this.torso.children[1].material = rubber;
+    for (const s of ['L', 'R']) this.limbs[s].upper.material = suit;
+    for (const s of ['L', 'R']) { this.limbs[s].thigh.material = suit; this.limbs[s].shin.material = rubber; }
+    // chest plate, a collar, and shoulder drams big enough to read as weight
+    this.torso.add(new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.5, 0.14), plate).translateY(0.32).translateZ(-0.21));
+    this.torso.add(new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.42, 0.14), plate).translateY(0.32).translateZ(0.22));
+    this.torso.add(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.14, 0.3), plate).translateY(0.6));
+    for (const sx of [-1, 1]) {
+      this.torso.add(new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.36), plate)
+        .translateX(sx * 0.4).translateY(0.52));
+      this.torso.add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.3, 8), plate)
+        .translateX(sx * 0.4).translateY(0.36).translateZ(0.1).rotateZ(Math.PI / 2));
+    }
+    // the air line running from the pack to the hammer: it is what makes the
+    // charge visible before the swing is
+    this.torso.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.07, 0.44), rubber)
+      .translateX(0.2).translateY(0.44).translateZ(0.16));
+
+    this.headG.children[0].material = new THREE.MeshStandardMaterial({ color: 0x3b423d, roughness: 0.6, metalness: 0.5 });
+    this.headG.add(new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.24, 0.29), plate).translateY(0.06));
+    this.headG.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.04),
+      new THREE.MeshStandardMaterial({ color: 0x080e10, emissive: 0xff5a2a, emissiveIntensity: 0.9, roughness: 0.3 }))
+      .translateY(0.02).translateZ(-0.16));
+
+    // the hammer: haft, piston head, and the cell that lights as it charges
+    this.hammer = new THREE.Group();
+    const haft = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.065, 1.05, 8), rubber);
+    this.hammer.add(haft);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.26, 0.42), plate);
+    head.position.y = 0.56;
+    this.hammer.add(head);
+    const face = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.32, 0.12), plate);
+    face.position.set(0, 0.56, -0.24);
+    this.hammer.add(face);
+    this.hammerCell = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.06), this.cellMat);
+    this.hammerCell.position.set(0, 0.56, 0.23);
+    this.hammer.add(this.hammerCell);
+    for (const sx of [-1, 1]) {
+      this.hammer.add(new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.34, 7), plate)
+        .translateX(sx * 0.16).translateY(0.36));
+    }
+    this.hammer.rotation.set(0.2, 0, -0.25);
+    this.limbs.R.hand.add(this.hammer);
+    this.baton.visible = false;
+    this.hasBaton = false;
+    this.windHold = 1.0;      // slow enough to read, heavy enough to be worth it
   }
 
   point(part, out = new THREE.Vector3()) {
@@ -387,7 +461,7 @@ export class Guard {
 
   /** accumulates damage; the caller performs the collapse so it can aim it */
   damage(amount) {
-    this.stagger += amount;
+    this.stagger += amount * (1 - this.armor);
     this.flinch = Math.min(0.7, (this.flinch || 0) + amount * 0.18);
     if (this.stagger >= 3.2) return { ko: true };
     this.event('flinch', { amount });
@@ -398,6 +472,7 @@ export class Guard {
     this.t += dt;
     this.flinch = Math.max(0, (this.flinch || 0) - dt * 2.4);
     this.exo = Math.max(0, this.exo - dt * 2);
+    if (this.mode !== 'wind' && this.mode !== 'swing') this.pneuma = Math.max(0, this.pneuma - dt * 3);
     const L = this.limbs;
 
     if (this.ko) {
@@ -470,7 +545,7 @@ export class Guard {
     if (this.scout) {
       walkSwing = this.scoutMove(dt, player);
     } else if (WALK_SPEED[this.mode] != null) {
-      const speed = WALK_SPEED[this.mode];
+      const speed = WALK_SPEED[this.mode] * this.walkRate;
       const tp = this.targetPos;
       const ddx = tp.x - this.root.position.x, ddz = tp.z - this.root.position.z;
       const dd = Math.hypot(ddx, ddz);
@@ -531,20 +606,36 @@ export class Guard {
         if (this.t > 0.15 && this.lighter?.parent === this.torso) this.dropLighter();
         break;
 
-      case 'wind':                   // telegraph: baton cocked up over one hip
+      case 'wind': {                 // telegraph: baton cocked up over one hip
+        if (this.trooper) {
+          // both hands, over the head, and the pack charging: a shock hammer
+          // reads as a promise long before it is a consequence
+          const k = THREE.MathUtils.clamp(this.t / this.windHold, 0, 1);
+          this.pneuma = k;
+          torsoPitch = -0.16 - k * 0.16;
+          headPitch = -0.18;
+          armTarget.R = V(this.swingSide * 0.2, 0.78 + k * 0.22, 0.3 + k * 0.1);
+          armTarget.L = V(-0.3, 0.6 + k * 0.2, 0.2 + k * 0.14);
+          if (this.t > this.windHold) this.setMode('swing');
+          break;
+        }
         torsoPitch = 0.12 + this.t * 0.14;
         armTarget.R = V(this.swingSide * 0.5, 0.6 + this.t * 0.2, 0.14);
-        if (this.t > 0.62) this.setMode('swing');
+        if (this.t > this.windHold) this.setMode('swing');
         break;
+      }
 
       case 'swing': {                // brutal downward arc, diagonally across
-        const k = THREE.MathUtils.clamp(this.t / 0.22, 0, 1);
+        const dur = this.trooper ? 0.34 : 0.22;
+        const k = THREE.MathUtils.clamp(this.t / dur, 0, 1);
+        if (this.trooper) this.pneuma = 1 - k;
         torsoPitch = 0.3 + k * 0.45;
         armTarget.R = V(
           THREE.MathUtils.lerp(this.swingSide * 0.5, -this.swingSide * 0.45, k),
-          THREE.MathUtils.lerp(0.62, -0.05, k),
-          THREE.MathUtils.lerp(0.16, -0.5, k)
+          THREE.MathUtils.lerp(this.trooper ? 1.0 : 0.62, -0.05, k),
+          THREE.MathUtils.lerp(this.trooper ? 0.4 : 0.16, -0.5, k)
         );
+        if (this.trooper) armTarget.L = V(-0.34, 0.5 - k * 0.5, 0.1 - k * 0.4);
         if (k >= 0.6 && !this.swingResolved) { this.swingResolved = true; this.event('swingHit', { side: this.swingSide }); }
         if (k >= 1) this.setMode('recover');
         break;
@@ -664,6 +755,11 @@ export class Guard {
     // one material drives both boot cells, so they charge and pulse together
     if (this.exoCell) {
       this.exoCell.emissiveIntensity = 0.35 + this.exo * 2.6 + Math.sin(this.t * 26) * 0.12 * this.exo;
+    }
+    // the hammer's cell is the whole telegraph: it has to be visible head-on
+    if (this.cellMat) {
+      this.cellMat.emissiveIntensity = 0.3 + this.pneuma * 5.2 + Math.sin(this.t * 30) * 0.4 * this.pneuma;
+      this.cellMat.emissive.setRGB(0.22 + this.pneuma * 0.7, 0.84, 1 - this.pneuma * 0.55);
     }
 
     torsoPitch -= this.flinch * 0.5;

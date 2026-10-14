@@ -13,6 +13,7 @@ export const MILESTONES = [
   { id: 'c1s1', ch: 1, sec: 1, phase: 'awaken', name: 'THE CELL', line: 'Ground Zero — bound to a fabrication chair' },
   { id: 'c1s2', ch: 1, sec: 2, phase: 'breach', name: 'THE OUTER RING', line: 'The catwalk — riot shields, and no bottom' },
   { id: 'c1s3', ch: 1, sec: 3, phase: 'crossing', name: 'THE TURBINE CROSSING', line: 'The sealed platform — three storeys of blades' },
+  { id: 'c1s4', ch: 1, sec: 4, phase: 'chute', name: 'THE ANOMALY CORE', line: 'Under the intake — the rift that rewrites your knuckles' },
 ];
 
 /** The beats a refresh may drop straight back into, because each one either spawns
@@ -23,6 +24,7 @@ export const RESUME = {
   1: ['awaken', 'approach'],
   2: ['breach', 'wall', 'bridge'],
   3: ['crossing', 'scouts', 'leap'],
+  4: ['chute', 'rift', 'troopers'],
 };
 
 /** The room that hands you the ability. Jumping into anything before it means the
@@ -43,6 +45,9 @@ const BEAT = {
   crossing: 'the sealed platform',
   scouts: 'the scouts coming down the cable',
   leap: 'the intake',
+  chute: 'the exhaust chute',
+  rift: 'the rift',
+  troopers: 'the things that came out of the pods',
 };
 
 export const beatName = (phase) => BEAT[phase] || 'a room you have not met yet';

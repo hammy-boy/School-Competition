@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { rollRarity } from './catalyst.js';
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 
@@ -18,7 +19,9 @@ export class Director {
     this.pipeArmed = false;
     this._blackT = 0;
     this.silo = game.silo;
+    this.core = game.core;
     this.enforcers = game.enforcers;
+    this.troopers = game.troopers;
     this._lastSafe = new THREE.Vector3();
     // the player asks the current floor what counts as solid
     this.opts.clamp = (pos) => this.g.env.clamp(pos);
@@ -31,10 +34,10 @@ export class Director {
   prompt(html) { this.g.hud.prompt(html); }
 
   /** the loudspeaker voice: a chime, a gated squawk, and a line of copy */
-  announce(text, hold = 5) {
+  announce(text, hold = 5, who = 'OUTER RING · INTERCOM') {
     this.audio.chime();
     this.audio.pa(hold * 0.78);
-    this.say('OUTER RING · INTERCOM', text, hold);
+    this.say(who, text, hold);
   }
 
   goto(phase) {
@@ -467,29 +470,30 @@ export class Director {
     this.after(1.2, () => this.goto('crossing'));
   }
 
-  _final(kind = 'ring') {
+  /** Chapter One, end of Section Four: the card is the chapter, not the room */
+  _final() {
     const { audio } = this;
+    const cat = this.g.catalyst;
     this.prompt(null);
+    this.opts.moveSpeed = 0;
+    this.opts.threat = null;
     this.hud.blur(3);
-    this.g.flashV = kind === 'turbine' ? 1 : 0.8;
-    if (kind === 'turbine') { audio.bladeChew(); this.g.addTrauma(2); }
+    this.g.flashV = 0.8;
     audio.flood();
+    audio.setRift(0.7, 1.6);
     this.after(1.4, () => this.hud.darkness(0.85));
     this.after(3.0, () => {
       const s = this.g.stats;
       const secs = (performance.now() - (s.t0 || performance.now())) / 1000;
-      if (kind === 'turbine') {
-        document.getElementById('end-kicker').textContent =
-          'CHAPTER ONE · THE CELL, THE OUTER RING AND THE TURBINE CROSSING — CLEAR';
-        document.getElementById('end-title').innerHTML =
-          'THE BLADES KEPT TURNING.<br><em>SOMETHING ELSE CAME THROUGH.</em>';
-        document.getElementById('stats').textContent =
-          `${secs.toFixed(0)}s · ${s.hits} clean strikes · ${s.misses} whiffs · ${s.uppercuts} loaded uppercuts · ${s.hurled} scouts thrown into the shaft · ${s.taken} hits taken`;
-        audio.setTurbine(0.16, 2.4);
-      } else {
-        document.getElementById('stats').textContent =
-          `${secs.toFixed(0)}s · ${s.hits} clean strikes · ${s.misses} whiffs · ${s.uppercuts} loaded uppercuts · ${s.taken} hits taken`;
-      }
+      document.getElementById('end-kicker').textContent =
+        'CHAPTER ONE · THE CELL, THE OUTER RING, THE TURBINE CROSSING AND THE ANOMALY CORE — CLEAR';
+      document.getElementById('end-title').innerHTML =
+        'THE PODS ARE OPEN.<br><em>SO IS THE WAY OUT.</em>';
+      document.getElementById('stats').textContent =
+        `${secs.toFixed(0)}s · ${s.hits} clean strikes · ${s.misses} whiffs · ${s.uppercuts} loaded ` +
+        `uppercuts · ${s.hurled} scouts thrown into the shaft · ${this.troopersDown || 0} troopers dropped` +
+        ` · ${s.taken} hits taken` +
+        (cat.def ? ` · PULL: ${cat.def.tier} ${cat.def.name}` : '');
       document.getElementById('endcard').classList.remove('hidden');
       this.g.over = true;
       audio.duckAmbient(0.2, 1.2);
@@ -886,8 +890,430 @@ export class Director {
       this._leapDone = true;
       p.vy = 0;
       this.hud.darkness(1);
-      this._final('turbine');
+      // the shaft is ninety metres of blades and then it is a chute, and the
+      // chute has a floor at the end of it — that is the whole of Section Four
+      this.goto('chute');
     }
+  }
+
+  // ============ SECTION FOUR · THE ANOMALY CORE ======================
+  //
+  // The shaft is ninety metres of blades, then a chute, and the chute has a
+  // floor at the end of it. Under the intake the facility keeps exactly one
+  // thing running: a tear in something, held open by six containment pods and a
+  // great deal of copper. It reaches for you the moment you are standing in the
+  // room — the fob goes first, then the pods, then what is left of you comes
+  // back with a colour on it. Three of the pods had people in them.
+
+  ph_chute(dt) {
+    const core = this.core;
+    const p = this.player;
+    if (dt === 0) {
+      this.section = 4;
+      this.g.setEnv('core');
+      this.g.setControls('core');
+      this._parkFighters();
+      this.opts.canLook = true;
+      this.opts.canLean = false;
+      this.opts.moveSpeed = 0;
+      this.opts.threat = null;
+      this.troopersDown = 0;
+      this._cleared = false;
+      this._dumped = false;
+      this._fade = 0;
+      this._fallT = 0;
+      this._chutePrompt = false;
+      core.setAlarm(0);
+      core.riftWant = 0.14;
+      core.surgeRift(0.8);
+      p.fob.visible = true;
+      p.fobRate = 1;
+      core.chuteWorld(p.root.position);
+      p.root.position.y = 6.4;
+      p.falling = true;
+      p.vy = -1.2;
+      p.busy = 99;
+      p.pitch = -1.1;
+      p.yaw = 0;
+      this.hud.darkness(1);
+      this.hud.blur(8);
+      this.hud.prompt(null);
+      this.audio.setTurbine(1.5, 0.8);
+      this.audio.leapWind(1.9);
+      this.say('', 'The blades stop being under you. Then something hard takes the rest.', 3.6);
+      this.after(2.2, () => this.think('Dust, a smell like a switched-off transformer, and a room that is not a room: the middle of it has given up.', 5.2));
+      this.after(6.4, () => this.announce('Exhaust-path obstruction cleared. Logged as turbine debris.', 4.4));
+      this.after(9.6, () => {
+        core.openRift(0.55);
+        this.audio.setRift(0.9, 2.2);
+        this.think('It is not light coming up out of the floor. It is a place where the floor is not.', 4.8);
+      });
+      this.after(13.4, () => {
+        core.surgeRift(0.9);
+        this.audio.riftSurge();
+        p.fobRate = 1;
+        this.g.addTrauma(0.4);
+        this.think('The fob has stopped screaming at the ground. It is screaming at the middle of the room.', 4.8);
+      });
+      this.after(16.8, () => {
+        this.audio.siren(1);
+        core.setAlarm(0.5);
+        this.announce('Containment margin eleven per cent. Non-essential personnel will clear the hall.', 4.4);
+      });
+      return;
+    }
+
+    if (p.falling && !this._dumped) { this._fallTick(dt); return; }
+    if (this._fade < 1) {
+      this._fade = Math.min(1, this._fade + dt / 1.4);
+      this.hud.darkness(1 - this._fade);
+      this.hud.blur(8 * (1 - this._fade));
+      return;                      // the hall comes in slowly, on the sim clock
+    }
+    this._fobPing(dt, 0.5);
+    if (this.t > 5 && !this._chutePrompt) {
+      this._chutePrompt = true;
+      this.prompt('<b>WASD</b> — THE HALL IS YOURS FOR A MOMENT  ·  <b>MOUSE</b> — LOOK AT THE MIDDLE OF IT');
+    }
+    if (this.t > 20.5) this.goto('rift');
+  }
+
+  /** the drop out of the chute, kept entirely in the dark: what you get is the
+   *  sound of it, and then the floor */
+  _fallTick(dt) {
+    const p = this.player;
+    this._fallT += dt;
+    p.pitch = THREE.MathUtils.damp(p.pitch, -1.3, 4, dt);
+    p.yaw += dt * 0.55;
+    this.audio.setTurbine(Math.max(0.4, 1.2 - this._fallT * 0.4), 0.25);
+    if (p.root.position.y <= 0.05) this._dump();
+  }
+
+  /** the chute puts you on the deck at speed and the deck wins */
+  _dump() {
+    const core = this.core;
+    const p = this.player;
+    const { audio } = this;
+    this._dumped = true;
+    p.falling = false;
+    p.vy = 0;
+    p.root.position.y = 0;
+    p.busy = 0;
+    core.clamp(p.root.position);
+    this.opts.moveSpeed = 3.9;
+    audio.flood();
+    audio.bodyHit();
+    audio.metalStep(1.6);
+    this.g.addHitstop(0.28);
+    this.g.addTrauma(1.8);
+    this.g.flashV = 0.45;
+    this.g.dmgPulse = 0.4;
+    this.input.rumble(1, 460);
+    core.burst(p.root.position.clone().setY(0.1), 34, [0.62, 0.58, 0.52], 1.4, 3.4, 0.9, 0.05);
+    core.surgeRift(0.5);
+    audio.setTurbine(0.5, 2.4);
+    audio.setRift(0.55, 2.4);
+  }
+
+  /** the hall has one axis and it is the tear: point the eyes at it */
+  _faceRift(lift = 0) {
+    const p = this.player;
+    const w = this.core.riftWorld(this._rw || (this._rw = new THREE.Vector3()));
+    const dx = w.x - p.root.position.x, dz = w.z - p.root.position.z;
+    const d = Math.max(0.8, Math.hypot(dx, dz));
+    p.aimYaw(Math.atan2(-dx, -dz));
+    p.pitch = Math.atan2(w.y - 1.62 + lift, d);
+  }
+
+  /** everyone from the three rooms above belongs to those rooms now */
+  _parkFighters() {
+    for (const f of this.g.fighters) {
+      if (f.trooper) continue;
+      if (f.ko) {
+        // a body already on its back keeps going down and out of frame, because
+        // the ko integrator never reads `mode`
+        f.groundY = -90;
+        f.v.y = -3;
+      } else {
+        f.mode = 'offscreen';
+      }
+      f.root.visible = false;
+    }
+  }
+
+  ph_rift(dt) {
+    const core = this.core;
+    const p = this.player;
+    const cat = this.g.catalyst;
+    if (dt === 0) {
+      this.opts.moveSpeed = 0;
+      this.opts.canLook = false;
+      this.opts.canLean = false;
+      this.opts.threat = null;
+      this.prompt(null);
+      p.busy = 99;
+      p.fobRate = 1;
+      this._faceRift();
+      // a pull you already carry is a pull this hall does not get to hand out
+      // twice — Continue and Section Select both land here with one in hand
+      if (cat.unlocked) {
+        core.openRift(1);
+        core.setRiftColor(cat.def.rgb);
+        this.audio.setRift(1.3, 1.2);
+        this.goto('troopers');
+        return;
+      }
+      core.setAlarm(1);
+      core.openRift(0.45);
+      this.audio.setRift(1.1, 1.4);
+      this.audio.siren(1);
+      this.say('', 'It is closer than it looked from the chute, and it has noticed that you are standing in the room.', 4.6);
+      this.after(2.0, () => {
+        core.openRift(1);
+        this.audio.riftTear(3.2);
+        this.g.addTrauma(0.9);
+        this.hud.blur(2.5);
+        this.think('The tear pulls itself wider on nothing. The gimbal rings are holding a shape that stopped being a shape.', 5);
+      });
+      this.after(4.4, () => {
+        core.lashTo(p.root.position.clone().setY(1.3));
+        core.surgeRift(1);
+        this.audio.riftSurge();
+        this.g.addHitstop(0.24);
+        this.g.addTrauma(1.7);
+        this.g.flashV = 0.9;
+        this.input.rumble(1, 600);
+        core.ember(p.root.position.clone().setY(1.35), core.riftColor, 30);
+        this.say('', 'It comes through the chest first. Then the arms. Then it is through the whole of you, looking for the edge.', 4.4);
+      });
+      this.after(6.0, () => {
+        this.audio.fobShatter();
+        p.fob.visible = false;
+        p.fobRate = 0;
+        this.g.addTrauma(0.5);
+        this.think('The tracker cracks down its own seam and stops. It was never pointed at your brother. It was pointed at this.', 5);
+      });
+      for (let i = 0; i < 6; i++) {
+        this.after(7.4 + i * 0.42, () => {
+          core.burstPod(i);
+          this.audio.podBurst();
+          this.g.addTrauma(0.55);
+        });
+      }
+      this.after(10.6, () => {
+        const def = rollRarity({ floored: true });
+        cat.unlock(def);
+        core.setRiftColor(def.rgb);
+        core.surgeRift(1);
+        core.lashTo(p.root.position.clone().setY(1.2));
+        this.audio.riftSurge();
+        this.audio.setRift(1.45, 1.6);
+        this.g.addHitstop(0.3);
+        this.g.addTrauma(1.9);
+        this.g.flashV = 1;
+        this.hud.blur(4);
+        this.input.rumble(1, 900);
+        this.after(0.55, () => this.hud.blur(0));
+        this.say(`${def.tier} · ${def.name}`, def.line, 6.5);
+      });
+      this.after(13.6, () => this.prompt('<b>1</b> — BASE STRIKE  ·  <b>2</b> — SPEND THE WHOLE METER'));
+      this.after(15.4, () => this.think('Three of the pods did not just vent gas. Three of them are standing up.', 4.6));
+      this.after(16.8, () => this.goto('troopers'));
+      return;
+    }
+    // the tear never settles while you are standing in front of it
+    if (!this._riftSurge || this.t - this._riftSurge > 2.6) {
+      this._riftSurge = this.t;
+      core.surgeRift(0.35);
+    }
+  }
+
+  ph_troopers(dt) {
+    const core = this.core;
+    const p = this.player;
+    if (dt === 0) {
+      this.opts.moveSpeed = 3.9;
+      this.opts.canLook = true;
+      this.opts.canLean = true;
+      this.opts.threat = null;
+      p.busy = 0;
+      p.desperation = Math.min(1, p.desperation + 0.5);
+      p.invuln = 0.8;
+      // the tracker died in the surge, whichever way you got here
+      p.fob.visible = false;
+      p.fobRate = 0;
+      this._riftSurge = 0;
+      core.setAlarm(1);
+      core.openRift(1);
+      core.openPods();
+      // a room you walk into already has the tear and the pull in it: the hall
+      // wears the colour of whatever the rift gave you, on a resume as on the night
+      if (this.g.catalyst.unlocked) core.setRiftColor(this.g.catalyst.def.rgb);
+      this.audio.setRift(1.3, 1.2);
+      this.audio.siren(2);
+      this._hammerAim = null;
+      this.troopersDown = this.troopersDown || 0;
+      this.spawnTroopers();
+      this.prompt('<b>WASD</b> — LEAVE THE SPOT WHEN HE COCKS THE HAMMER  ·  <b>2</b> — SPEND IT ON ARMOUR');
+      this.after(1.4, () => this.say('CONTAINMENT TROOPER', 'Hall four: subject contained. Subject is not contained.', 3.6));
+      this.after(5.2, () => this.think('Insulated plate, a visor with no chin under it, and a hammer on a pneumatic line. Knuckles are not in this argument.', 5.4));
+      this.after(11.0, () => this.think('He puts all of his weight into one swing. Step out of the spot you were in and the spot becomes his problem.', 5.2));
+      return;
+    }
+
+    // one at a time: three armoured men swinging on a twenty-two-metre floor is
+    // not a fight, it is a dice roll, and the overruns are the only reward here
+    let busy = 0;
+    for (const t of this.troopers) {
+      if (!t.ko && (t.mode === 'wind' || t.mode === 'swing' || t.mode === 'recover' || t.overextended)) busy++;
+    }
+    let nearest = null, nd = Infinity;
+    for (const t of this.troopers) {
+      if (t.ko || t.mode === 'offscreen') continue;
+      core.clamp(t.root.position);
+      const d = t.distanceTo(p.root.position);
+      if (d < nd) { nd = d; nearest = t; }
+      if (busy > 0) {
+        // nobody starts a swing while a squadmate is already mid-commit; the
+        // rush is stopped here because the collapse code starts the wind on
+        // arrival and does not ask permission first
+        if (t.mode === 'rush') t.setMode('stalk');
+        continue;
+      }
+      if (d > 8.5) continue;
+      if (t.mode === 'stalk' || t.mode === 'enter') {
+        t.setMode('rush');
+        t.goTo(p.root.position.x, p.root.position.z);
+      } else if (t.mode === 'rush') {
+        // within arm's reach the target becomes his own feet: arrival is what
+        // starts the wind, and a man who keeps re-aiming never swings
+        if (d < 1.7) t.goTo(t.root.position.x, t.root.position.z);
+        else t.goTo(p.root.position.x, p.root.position.z);
+      }
+    }
+    this.opts.threat = nearest ? nd : null;
+
+    if (this.troopersDown >= 3) { this._coreClear(); return; }
+    // the hall breathes on its own clock through the whole of this
+    if (this.t - this._riftSurge > 3.4) { this._riftSurge = this.t; core.surgeRift(0.3); }
+    if (p.resolve <= 0) this.blackout('troopers');
+  }
+
+  /** three of the containment pods were never holding gas */
+  spawnTroopers() {
+    const core = this.core;
+    const out = this._pf || (this._pf = new THREE.Vector3());
+    for (const [i, t] of this.troopers.entries()) {
+      core.podFront([1, 3, 5][i], out);
+      t.ko = false; t.koT = 0; t.stagger = 0; t.landed = false; t.flinch = 0;
+      t.overextended = false; t.vulnerable = false; t.pneuma = 0;
+      t.hasBaton = false;
+      t.groundY = 0;
+      t.v.set(0, 0, 0);
+      t.spin.set(0, 0, 0);
+      t.root.position.set(out.x, 0, out.z);
+      t.root.rotation.set(0, 0, 0);
+      t.root.visible = false;
+      t.mode = 'stalk';
+      t.setMode('offscreen');
+      this.after(0.7 + i * 0.9, () => {
+        t.root.visible = true;
+        core.burst(t.root.position.clone().setY(1.7), 18, [0.82, 0.9, 1], 1.2, 2.6, 1.5, 0.05);
+        core.surgeRift(0.4);
+        this.audio.podBurst();
+        this.audio.metalStep(1.5);
+        t.setMode('enter');
+        t.goTo(out.x * 0.84, out.z * 0.84);
+      });
+    }
+  }
+
+  /** the hammer's whole telegraph: he is telling you exactly where he intends
+   *  to hit, and the only answer is not to be in it */
+  onHammerWind(guard) {
+    const p = this.player;
+    this._hammerAim = { x: p.root.position.x, z: p.root.position.z };
+    this.audio.pneumatic(1);
+    this.audio.creak(1.3);
+    this.prompt('HAMMER COCKED — <b>WASD</b> — LEAVE THAT SPOT');
+    if (!this._windLine || this.time - this._windLine > 6) {
+      this._windLine = this.time;
+      this.think('Both arms over the helmet, the line charging under his arm. One place, once, very hard.', 4.2);
+    }
+  }
+
+  /** the swing resolves against where you stood, not where you are now */
+  onHammerSwing(guard) {
+    const core = this.core;
+    const p = this.player;
+    const { audio } = this;
+    const aim = this._hammerAim || { x: p.root.position.x, z: p.root.position.z };
+    const moved = Math.hypot(p.root.position.x - aim.x, p.root.position.z - aim.z);
+    audio.whoosh(1.7);
+    if (moved > 1.25) {
+      guard.overextended = true;
+      audio.smash();
+      audio.grind(0.6);
+      this.g.addTrauma(0.8);
+      this.g.flashV = 0.35;
+      this.input.rumble(0.8, 180);
+      core.burst(new THREE.Vector3(aim.x, 0.35, aim.z), 26, [0.7, 0.66, 0.6], 1.3, 3.6, 1.2, 0.05);
+      core.surgeRift(0.3);
+      p.desperation = Math.min(1, p.desperation + 0.35);
+      p.addImpulse((Math.random() - 0.5) * 0.3, 0.4);
+      this.prompt('<b>RMB</b> / <b>1</b> — HE CANNOT PULL IT OUT OF THE FLOOR');
+      if (!this._dodgeLine || this.time - this._dodgeLine > 5) {
+        this._dodgeLine = this.time;
+        this.think('The hammer goes through the plate where you were standing. It takes him a full second to get it back out.', 4);
+      }
+      return;
+    }
+    const hurt = p.damage(1);
+    const away = new THREE.Vector3(p.root.position.x - guard.root.position.x, 0, p.root.position.z - guard.root.position.z);
+    if (away.lengthSq() < 1e-4) away.set(0, 0, 1);
+    away.normalize();
+    p.root.position.x += away.x * 0.9;
+    p.root.position.z += away.z * 0.9;
+    core.clamp(p.root.position);
+    if (!hurt) {
+      this.g.addHitstop(0.05);
+      this.g.addTrauma(0.8);
+      this.think('The shock goes through you and you are already leaning with it. It does not count.', 3.4);
+      return;
+    }
+    this.g.stats.taken++;
+    this.g.dmgPulse = 1;
+    this.g.addHitstop(0.13);
+    this.g.addTrauma(1.5);
+    this.g.flashV = 0.6;
+    audio.hit(1.9);
+    audio.smash();
+    this.input.rumble(1, 260);
+    core.burst(p.headWorld(new THREE.Vector3()), 16, [0.62, 0.06, 0.05], 0.9, 2.4, 0.9);
+    const lines = [
+      'The plate of it takes you across the ribs. The room goes away and comes back wrong way up.',
+      'A metre short of out of it. Pneumatics do not care about a metre.',
+      'The shock lifts you off the deck and puts you down on the far side of the ring.',
+    ];
+    this.think(lines[(this.g.stats.taken - 1) % lines.length], 3.6);
+    this.prompt('<b>WASD</b> — OFF THE SPOT BEFORE HE COCKS IT AGAIN');
+  }
+
+  /** the gate is the last beat of the chapter: it opens and the copy lands */
+  _coreClear() {
+    if (this._cleared) return;
+    this._cleared = true;
+    const core = this.core;
+    this.opts.moveSpeed = 3.6;
+    this.opts.threat = null;
+    this.prompt(null);
+    core.setAlarm(0.2);
+    core.openGate();
+    this.audio.grind(2.6);
+    this.after(1.6, () => this.say('', 'The last one stops moving. Six pods open, one door open, and the hall is only a hall again.', 4.8));
+    this.after(3.6, () => this.announce('GATE SEVEN RELEASED. CARGO GANTRY UNSEALED.', 4.2, 'THE FACILITY · INTERCOM'));
+    this.after(5.6, () => this.think('Cold air out of there, and diesel. A way out — and not the way to them.', 5));
+    this.after(7.8, () => this._final());
   }
 
   // ---------- Section Two machinery ----------
@@ -1095,6 +1521,16 @@ export class Director {
         this._evadeLine = 0;
         this.audio.setTurbine(1.05, 1.6);
       }
+      if (this.section >= 4) {
+        // the pods stay open and the pull stays yours: the hall re-runs the
+        // fight, it does not re-run the room
+        this.troopersDown = 0;
+        this._cleared = false;
+        this._hammerAim = null;
+        this.opts.threat = null;
+        this.audio.setTurbine(0.45, 1.8);
+        this.audio.setRift(1.2, 1.4);
+      }
     }
     this.goto(this._blackAnchor);
   }
@@ -1104,6 +1540,10 @@ export class Director {
   }
 
   blackout(anchor) {
+    if (this.section >= 4) {
+      this._blackout(anchor, 'The dark takes you again. It hands you back the same hall, and the same three helmets.');
+      return;
+    }
     if (this.section >= 2) { this.blackoutSilo(anchor); return; }
     this._blackout(anchor, 'The dark takes you again. It hands you back the same room.');
   }
@@ -1127,6 +1567,7 @@ export class Director {
     switch (name) {
       case 'footstep':
         if (guard.scout) audio.exoStep(guard.mode === 'dash' ? 1.2 : 0.8);
+        else if (guard.trooper) audio.metalStep(1.5);
         else if (this.section >= 2) audio.metalStep(guard.mode === 'wall' ? 1.15 : 0.7);
         else audio.step(isBruiser ? 1.2 : 0.95);
         break;
@@ -1141,12 +1582,16 @@ export class Director {
         this.silo.burst(guard.root.position.clone().setY(0.06), 18, [0.5, 0.46, 0.4], 0.9, 2.6, 0.5, 0.05);
         break;
       case 'wind':
+        if (guard.trooper) { this.onHammerWind(guard); break; }
         this.forceSide = payload.side;
         audio.whoosh(1.2);
         audio.creak(1.1);
         this.prompt(payload.side < 0 ? 'ARC COMING FROM HIS RIGHT — <b>LEAN →</b>' : 'ARC COMING FROM HIS LEFT — <b>LEAN ←</b>');
         break;
-      case 'swingHit': this.resolveDodge(guard, payload.side); break;
+      case 'swingHit':
+        if (guard.trooper) this.onHammerSwing(guard);
+        else this.resolveDodge(guard, payload.side);
+        break;
       case 'flinch': audio.hit(0.6); break;
       case 'land': audio.bodyHit(); this.g.addTrauma(0.55); break;
       case 'ko': audio.crack(); break;
@@ -1213,6 +1658,36 @@ export class Director {
     // finishing a movement it started
     if (guard.scout) {
       if (this.phase === 'scouts' && !guard.ko) this.hurlScout(guard);
+      return;
+    }
+
+    if (guard.trooper) {
+      if (res.ko) {
+        this.troopersDown++;
+        const away = guard.root.position.clone().sub(player.root.position).setY(0);
+        if (away.lengthSq() < 1e-4) away.set(0, 0, 1);
+        away.normalize();
+        guard.knockOut(away.x * 1.5, 1.6, away.z * 3.4, -9.2);
+        this.g.addHitstop(0.16);
+        this.g.addTrauma(1.45);
+        this.g.flashV = 0.8;
+        this.input.rumble(1, 240);
+        audio.crack();
+        audio.clatter();
+        this.core.burst(guard.point('chest', new THREE.Vector3()), 26, [0.85, 0.8, 0.72], 1.2, 3.4, 1.1, 0.05);
+        this.core.surgeRift(0.35);
+        const left = 3 - this.troopersDown;
+        if (left === 2) this.think('The plate is in around his ribs and he is not getting up. Two of them still have their feet.', 3.8);
+        if (left === 1) this.think('One left. The meter is already coming back.', 3.4);
+        if (left === 0) { this.prompt(null); this.think('The last hammer comes down on the deck and stops charging.', 3.8); }
+        else this.prompt('<b>1</b> — STRIKE  ·  <b>2</b> — ANOMALY  ·  <b>WASD</b> — OFF THE SPOT');
+      } else if (part === 'knee') {
+        audio.hit(0.6);
+        if (!this._kneeLine || this.time - this._kneeLine > 4) {
+          this._kneeLine = this.time;
+          this.think('Insulated plate down to the ankle. A knee strike is a noise it makes at you.', 3.2);
+        }
+      }
       return;
     }
 
