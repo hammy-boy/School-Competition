@@ -170,3 +170,26 @@ button.ghost:hover{background:rgba(255,255,255,.06);color:#eadfcb;transform:none
 #nav button.ms:hover{background:#221a12;border-color:#6a553b;transform:none;color:#eadfcb}
 #nav .ms.locked{border-style:dashed;opacity:.5}
 #nav .ms.locked .ms-n{color:#8a8177}
+
+/* ---- chapter choice UI ---- */
+#choice{position:fixed;inset:0;z-index:23;display:grid;place-items:center;transition:opacity .3s ease;
+  background:radial-gradient(ellipse at 50% 42%,#1a1512 0%,#090706 62%,#000 100%)}
+#choice::after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.03) 0 1px,transparent 1px 3px)}
+#choice h1{font:800 clamp(28px,5.2vw,56px)/1.05 Arial;letter-spacing:-.01em;color:#f2ece1;margin-bottom:18px}
+#choice h1 em{font-style:normal;color:var(--accent)}
+.choice-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:30px;margin:32px 0;
+  max-width:920px}
+.choice-card{background:rgba(20,16,12,.7);border:1px solid #3a3025;padding:28px;text-align:left;
+  transition:.2s;position:relative;overflow:hidden}
+.choice-card::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(255,255,255,.03),transparent);
+  pointer-events:none}
+.choice-card:hover{border-color:#6a553b;background:rgba(26,20,14,.8);transform:translateY(-4px)}
+.choice-card h2{font:700 18px/1.1 Arial;letter-spacing:.12em;color:#f2ece1;margin-bottom:8px}
+.choice-card h2 em{font-style:normal;color:var(--accent);font-size:.9em}
+.choice-sub{font:400 13px/1.5 Georgia,serif;color:#a89f92;margin-bottom:16px}
+.choice-features{list-style:none;padding:0;margin:0 0 20px 0}
+.choice-features li{padding:8px 0 8px 24px;position:relative;font:400 12px/1.4 Arial;color:#9d958a;
+  border-bottom:1px solid rgba(255,255,255,.05)}
+.choice-features li::before{content:"→";position:absolute;left:0;color:var(--accent);font-weight:700}
+.choice-btn{width:100%;padding:14px 24px;font-size:12px;letter-spacing:.22em;margin-top:12px}
